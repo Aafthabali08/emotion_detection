@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import Webcam from 'react-webcam';
-import { Camera, CameraOff, Play, Square, ZoomIn, ZoomOut, Check, X, Activity, MessageSquareText, BrainCircuit } from 'lucide-react';
+import { Camera, CameraOff, Play, Square, ZoomIn, ZoomOut, Check, X, Activity, MessageSquareText, BrainCircuit, Maximize, Minimize } from 'lucide-react';
 
 interface FaceResult {
   box: { x: number; y: number; width: number; height: number };
@@ -25,6 +25,7 @@ const EMOTIONS_LIST = ['happy', 'sad', 'angry', 'fearful', 'disgusted', 'surpris
 export default function Home() {
   const webcamRef = useRef<Webcam>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   
   const [isCameraOn, setIsCameraOn] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
@@ -32,6 +33,7 @@ export default function Home() {
   const [zoom, setZoom] = useState(1);
   const [feedbackMsg, setFeedbackMsg] = useState('');
   const [isLearning, setIsLearning] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const captureAndDetect = useCallback(async () => {
     if (!webcamRef.current || !isDetecting) return;
@@ -72,6 +74,25 @@ export default function Home() {
     }
     return () => clearInterval(interval);
   }, [isDetecting, isCameraOn, captureAndDetect]);
+
+  // Handle Fullscreen changes
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
 
   // Draw bounding boxes
   useEffect(() => {
@@ -192,10 +213,15 @@ export default function Home() {
         <div className="flex flex-col lg:flex-row gap-6 w-full">
           {/* Main Camera Area */}
           <div className="flex-1 flex flex-col gap-4">
-            <div className="relative w-full aspect-video bg-black rounded-3xl overflow-hidden border-2 border-zinc-800 shadow-2xl flex items-center justify-center">
-              
+            
+            <div 
+              ref={containerRef}
+              className={`relative w-full bg-black flex items-center justify-center overflow-hidden ${
+                isFullscreen ? 'h-full' : 'aspect-video rounded-3xl border-2 border-zinc-800 shadow-2xl'
+              }`}
+            >
               {isCameraOn ? (
-                <div className="relative w-full h-full overflow-hidden flex items-center justify-center">
+                <div className="relative w-full h-full overflow-hidden flex items-center justify-center group">
                   <div style={{ transform: `scale(${zoom})`, transition: 'transform 0.3s ease-out' }} className="relative w-full h-full origin-center">
                     <Webcam
                       ref={webcamRef}
@@ -209,9 +235,28 @@ export default function Home() {
                     />
                   </div>
 
+                  {/* Fullscreen Toggle Buttons */}
+                  {!isFullscreen ? (
+                    <button 
+                      onClick={toggleFullscreen}
+                      className="absolute top-4 right-4 p-2 bg-black/50 hover:bg-black/80 backdrop-blur-md rounded-xl text-white transition-all opacity-0 group-hover:opacity-100 z-10"
+                      title="Enter Fullscreen"
+                    >
+                      <Maximize className="w-5 h-5" />
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={toggleFullscreen}
+                      className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-white/20 hover:bg-white/30 backdrop-blur-md text-white px-6 py-3 rounded-full font-bold transition-all z-10"
+                    >
+                      <Minimize className="w-5 h-5" />
+                      Exit Fullscreen
+                    </button>
+                  )}
+
                   {/* Emoji Rating Capsule */}
                   {primaryEmotion && (
-                    <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-white backdrop-blur-xl rounded-full px-6 py-2 flex items-center gap-3 shadow-[0_0_20px_rgba(255,255,255,0.2)] animate-in fade-in slide-in-from-top-4">
+                    <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-white backdrop-blur-xl rounded-full px-6 py-2 flex items-center gap-3 shadow-[0_0_20px_rgba(255,255,255,0.2)] animate-in fade-in slide-in-from-top-4 z-10">
                       <span className="text-3xl drop-shadow-md">{primaryEmoji}</span>
                       <div className="flex flex-col">
                         <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Current Mood</span>
@@ -222,7 +267,7 @@ export default function Home() {
 
                   {/* Action Buttons Overlay */}
                   {!isDetecting ? (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-10">
                       <button 
                         onClick={() => setIsDetecting(true)}
                         className="flex items-center gap-3 bg-white hover:bg-zinc-200 text-black px-8 py-4 rounded-full font-bold text-lg transition-transform hover:scale-105 shadow-[0_0_30px_rgba(255,255,255,0.3)]"
@@ -234,7 +279,7 @@ export default function Home() {
                   ) : (
                     <button 
                       onClick={() => setIsDetecting(false)}
-                      className="absolute bottom-6 right-6 flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-5 py-2.5 rounded-full font-bold shadow-lg shadow-red-500/30 transition-all hover:scale-105"
+                      className={`absolute right-6 flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-5 py-2.5 rounded-full font-bold shadow-lg shadow-red-500/30 transition-all hover:scale-105 z-10 ${isFullscreen ? 'bottom-8' : 'bottom-6'}`}
                     >
                       <Square className="w-4 h-4 fill-current" />
                       Stop
