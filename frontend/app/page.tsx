@@ -2,11 +2,12 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import Webcam from 'react-webcam';
-import { Camera, CameraOff, Play, Square, ZoomIn, ZoomOut, Check, X } from 'lucide-react';
+import { Camera, CameraOff, Play, Square, ZoomIn, ZoomOut, Check, X, Activity } from 'lucide-react';
 
 interface FaceResult {
   box: { x: number; y: number; width: number; height: number };
   dominantEmotion: string;
+  allEmotions: Record<string, number>;
 }
 
 const EMOTION_EMOJIS: Record<string, string> = {
@@ -18,6 +19,8 @@ const EMOTION_EMOJIS: Record<string, string> = {
   surprised: '😲',
   neutral: '😐'
 };
+
+const EMOTIONS_LIST = ['happy', 'sad', 'angry', 'fearful', 'disgusted', 'surprised', 'neutral'];
 
 export default function Home() {
   const webcamRef = useRef<Webcam>(null);
@@ -102,21 +105,27 @@ export default function Home() {
     }
   }, [faces]);
 
-  const primaryEmotion = faces.length > 0 ? faces[0].dominantEmotion : null;
+  const primaryFace = faces.length > 0 ? faces[0] : null;
+  const primaryEmotion = primaryFace?.dominantEmotion;
   const primaryEmoji = primaryEmotion ? EMOTION_EMOJIS[primaryEmotion] : null;
 
   return (
     <div className="flex flex-col items-center min-h-screen p-6 bg-zinc-950 text-white font-sans">
-      <div className="w-full max-w-4xl flex flex-col gap-6">
+      <div className="w-full max-w-5xl flex flex-col gap-6">
         
-        <header className="flex justify-between items-center bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
-          <h1 className="text-2xl font-bold">EmotionAI</h1>
+        <header className="flex justify-between items-center bg-zinc-900 p-4 rounded-2xl border border-zinc-800 shadow-lg">
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Activity className="w-6 h-6 text-blue-500" />
+            EmotionAI
+          </h1>
           
           <div className="flex gap-3">
             <button 
               onClick={() => { setIsCameraOn(!isCameraOn); if(isCameraOn) setIsDetecting(false); }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full font-medium transition-colors ${
-                isCameraOn ? 'bg-red-500/20 text-red-500 hover:bg-red-500/30' : 'bg-emerald-500/20 text-emerald-500 hover:bg-emerald-500/30'
+              className={`flex items-center gap-2 px-5 py-2 rounded-full font-bold transition-all ${
+                isCameraOn 
+                  ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20' 
+                  : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/30'
               }`}
             >
               {isCameraOn ? <CameraOff className="w-5 h-5" /> : <Camera className="w-5 h-5" />}
@@ -125,104 +134,154 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Main Camera Area */}
-        <div className="relative w-full aspect-video bg-black rounded-3xl overflow-hidden border-2 border-zinc-800 shadow-2xl flex items-center justify-center">
-          
-          {isCameraOn ? (
-            <div className="relative w-full h-full overflow-hidden flex items-center justify-center">
-              <div style={{ transform: `scale(${zoom})`, transition: 'transform 0.3s ease-out' }} className="relative w-full h-full">
-                <Webcam
-                  ref={webcamRef}
-                  audio={false}
-                  screenshotFormat="image/jpeg"
-                  className="w-full h-full object-cover"
-                />
-                <canvas
-                  ref={canvasRef}
-                  className="absolute top-0 left-0 w-full h-full pointer-events-none object-cover"
-                />
-              </div>
-
-              {/* Emoji Rating Capsule */}
-              {primaryEmotion && (
-                <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-xl border border-white/10 rounded-full px-6 py-3 flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-top-4">
-                  <span className="text-3xl">{primaryEmoji}</span>
-                  <div className="flex flex-col">
-                    <span className="text-xs text-zinc-400 uppercase tracking-wider font-semibold">Current Mood</span>
-                    <span className="text-lg font-bold capitalize text-white">{primaryEmotion}</span>
+        <div className="flex flex-col lg:flex-row gap-6 w-full">
+          {/* Main Camera Area */}
+          <div className="flex-1 flex flex-col gap-4">
+            <div className="relative w-full aspect-video bg-black rounded-3xl overflow-hidden border-2 border-zinc-800 shadow-2xl flex items-center justify-center">
+              
+              {isCameraOn ? (
+                <div className="relative w-full h-full overflow-hidden flex items-center justify-center">
+                  <div style={{ transform: `scale(${zoom})`, transition: 'transform 0.3s ease-out' }} className="relative w-full h-full origin-center">
+                    <Webcam
+                      ref={webcamRef}
+                      audio={false}
+                      screenshotFormat="image/jpeg"
+                      className="w-full h-full object-cover"
+                    />
+                    <canvas
+                      ref={canvasRef}
+                      className="absolute top-0 left-0 w-full h-full pointer-events-none object-cover"
+                    />
                   </div>
-                </div>
-              )}
 
-              {/* Action Buttons Overlay */}
-              {!isDetecting ? (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-                  <button 
-                    onClick={() => setIsDetecting(true)}
-                    className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-8 py-4 rounded-full font-bold text-lg transition-transform hover:scale-105 shadow-blue-500/50 shadow-lg"
-                  >
-                    <Play className="w-6 h-6 fill-current" />
-                    Start Emotion Tracking
-                  </button>
+                  {/* Emoji Rating Capsule */}
+                  {primaryEmotion && (
+                    <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-xl border border-white/10 rounded-full px-6 py-2 flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-top-4">
+                      <span className="text-3xl drop-shadow-md">{primaryEmoji}</span>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-zinc-400 uppercase tracking-widest font-bold">Current Mood</span>
+                        <span className="text-xl font-black capitalize text-white leading-tight">{primaryEmotion}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons Overlay */}
+                  {!isDetecting ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                      <button 
+                        onClick={() => setIsDetecting(true)}
+                        className="flex items-center gap-3 bg-blue-500 hover:bg-blue-600 text-white px-8 py-4 rounded-full font-bold text-lg transition-transform hover:scale-105 shadow-blue-500/50 shadow-2xl"
+                      >
+                        <Play className="w-6 h-6 fill-current" />
+                        Start Emotion Tracking
+                      </button>
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={() => setIsDetecting(false)}
+                      className="absolute bottom-6 right-6 flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-5 py-2.5 rounded-full font-bold shadow-lg shadow-red-500/30 transition-all hover:scale-105"
+                    >
+                      <Square className="w-4 h-4 fill-current" />
+                      Stop
+                    </button>
+                  )}
                 </div>
               ) : (
-                <button 
-                  onClick={() => setIsDetecting(false)}
-                  className="absolute bottom-6 right-6 flex items-center gap-2 bg-red-500/80 hover:bg-red-500 text-white px-4 py-2 rounded-full font-medium backdrop-blur-md transition-colors"
-                >
-                  <Square className="w-4 h-4 fill-current" />
-                  Stop
-                </button>
+                <div className="text-zinc-600 flex flex-col items-center gap-4">
+                  <CameraOff className="w-16 h-16 opacity-50" />
+                  <p className="text-lg font-medium">Camera is turned off</p>
+                </div>
               )}
             </div>
-          ) : (
-            <div className="text-zinc-600 flex flex-col items-center gap-4">
-              <CameraOff className="w-16 h-16" />
-              <p className="text-lg font-medium">Camera is turned off</p>
-            </div>
-          )}
-        </div>
 
-        {/* Bottom Controls Bar */}
-        <div className="grid grid-cols-3 gap-4 bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
-          
-          {/* Zoom Controls */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mr-2">Zoom</span>
-            <button 
-              disabled={!isCameraOn || zoom <= 1}
-              onClick={() => setZoom(prev => Math.max(1, prev - 0.2))}
-              className="p-3 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 disabled:hover:bg-zinc-800 rounded-xl transition-colors"
-            >
-              <ZoomOut className="w-5 h-5" />
-            </button>
-            <span className="font-mono w-12 text-center text-zinc-300">{Math.round(zoom * 100)}%</span>
-            <button 
-              disabled={!isCameraOn || zoom >= 3}
-              onClick={() => setZoom(prev => Math.min(3, prev + 0.2))}
-              className="p-3 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 disabled:hover:bg-zinc-800 rounded-xl transition-colors"
-            >
-              <ZoomIn className="w-5 h-5" />
-            </button>
+            {/* Bottom Controls Bar */}
+            <div className="flex items-center justify-between bg-zinc-900 p-4 rounded-2xl border border-zinc-800 shadow-lg">
+              
+              {/* Zoom Controls */}
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest bg-zinc-950 px-3 py-1.5 rounded-lg border border-zinc-800">Zoom</span>
+                <button 
+                  disabled={!isCameraOn || zoom <= 1}
+                  onClick={() => setZoom(prev => Math.max(1, prev - 0.2))}
+                  className="p-2.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:hover:bg-zinc-800 rounded-xl transition-colors"
+                >
+                  <ZoomOut className="w-5 h-5" />
+                </button>
+                <span className="font-mono text-sm w-12 text-center text-zinc-300 font-bold">{Math.round(zoom * 100)}%</span>
+                <button 
+                  disabled={!isCameraOn || zoom >= 3}
+                  onClick={() => setZoom(prev => Math.min(3, prev + 0.2))}
+                  className="p-2.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:hover:bg-zinc-800 rounded-xl transition-colors"
+                >
+                  <ZoomIn className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Accept / Reject */}
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-emerald-400 mr-2 animate-in fade-in">{feedbackMsg}</span>
+                <button 
+                  onClick={() => { setFeedbackMsg('Result Rejected ❌'); setTimeout(() => setFeedbackMsg(''), 2000); }}
+                  className="flex items-center gap-2 bg-zinc-950 hover:bg-red-500/20 border border-zinc-800 hover:border-red-500/50 hover:text-red-400 text-zinc-400 px-5 py-2.5 rounded-xl font-bold transition-all"
+                >
+                  <X className="w-4 h-4" />
+                  Reject
+                </button>
+                <button 
+                  onClick={() => { setFeedbackMsg('Result Accepted ✅'); setTimeout(() => setFeedbackMsg(''), 2000); }}
+                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-blue-500/20 transition-all"
+                >
+                  <Check className="w-4 h-4" />
+                  Accept
+                </button>
+              </div>
+
+            </div>
           </div>
 
-          {/* Accept / Reject */}
-          <div className="col-span-2 flex items-center justify-end gap-3">
-            <span className="text-sm text-zinc-400 mr-2">{feedbackMsg}</span>
-            <button 
-              onClick={() => { setFeedbackMsg('Feedback Rejected ❌'); setTimeout(() => setFeedbackMsg(''), 2000); }}
-              className="flex items-center gap-2 bg-zinc-800 hover:bg-red-500/20 hover:text-red-400 text-zinc-300 px-6 py-3 rounded-xl font-medium transition-colors"
-            >
-              <X className="w-5 h-5" />
-              Reject
-            </button>
-            <button 
-              onClick={() => { setFeedbackMsg('Feedback Accepted ✅'); setTimeout(() => setFeedbackMsg(''), 2000); }}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-medium transition-colors"
-            >
-              <Check className="w-5 h-5" />
-              Accept
-            </button>
+          {/* Right Side Panel - All 7 Emotions Dashboard */}
+          <div className="w-full lg:w-80 flex flex-col gap-4">
+            <div className="bg-zinc-900 rounded-3xl p-6 border border-zinc-800 shadow-xl flex-1">
+              <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
+                <Activity className="w-5 h-5 text-blue-500" />
+                Emotion Analysis
+              </h2>
+              
+              {!primaryFace ? (
+                <div className="h-full flex flex-col items-center justify-center text-zinc-500 space-y-4 pb-12">
+                  <span className="text-6xl opacity-20">🎭</span>
+                  <p className="text-sm text-center">Turn on tracking to<br/>see all 7 emotions live</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-5">
+                  {EMOTIONS_LIST.map(emotion => {
+                    const score = primaryFace.allEmotions[emotion] || 0;
+                    const percentage = Math.round(score * 100);
+                    const isDominant = emotion === primaryEmotion;
+                    
+                    return (
+                      <div key={emotion} className="flex flex-col gap-1.5">
+                        <div className="flex justify-between items-end">
+                          <span className={`text-sm font-bold flex items-center gap-2 ${isDominant ? 'text-white' : 'text-zinc-400'}`}>
+                            <span className="text-xl">{EMOTION_EMOJIS[emotion]}</span>
+                            <span className="capitalize">{emotion}</span>
+                          </span>
+                          <span className={`text-xs font-mono font-bold ${isDominant ? 'text-blue-400' : 'text-zinc-500'}`}>
+                            {percentage}%
+                          </span>
+                        </div>
+                        <div className="w-full h-2 bg-zinc-950 rounded-full overflow-hidden border border-zinc-800/50">
+                          <div 
+                            className={`h-full rounded-full transition-all duration-300 ease-out ${isDominant ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]' : 'bg-zinc-700'}`}
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
         </div>
