@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import Webcam from 'react-webcam';
-import { Camera, CameraOff, Play, Square, ZoomIn, ZoomOut, Check, X, Activity } from 'lucide-react';
+import { Camera, CameraOff, Play, Square, ZoomIn, ZoomOut, Check, X, Activity, MessageSquareText } from 'lucide-react';
 
 interface FaceResult {
   box: { x: number; y: number; width: number; height: number };
@@ -108,6 +108,24 @@ export default function Home() {
   const primaryFace = faces.length > 0 ? faces[0] : null;
   const primaryEmotion = primaryFace?.dominantEmotion;
   const primaryEmoji = primaryEmotion ? EMOTION_EMOJIS[primaryEmotion] : null;
+
+  // Generate Live Analysis Summary
+  let liveAnalysisText = "Waiting for face...";
+  if (primaryFace) {
+    const sortedEmotions = Object.entries(primaryFace.allEmotions)
+      .sort(([, a], [, b]) => b - a);
+    
+    const [highestEmotion, highestScore] = sortedEmotions[0];
+    const [secondEmotion, secondScore] = sortedEmotions[1];
+
+    if (highestScore < 0.2) {
+      liveAnalysisText = "No strong emotion detected.";
+    } else if (secondScore >= 0.2) {
+      liveAnalysisText = `Mixed Reaction: ${highestEmotion} + ${secondEmotion}`;
+    } else {
+      liveAnalysisText = `Clear Emotion: ${highestEmotion}`;
+    }
+  }
 
   return (
     <div className="flex flex-col items-center min-h-screen p-6 bg-zinc-950 text-white font-sans">
@@ -241,44 +259,59 @@ export default function Home() {
 
           {/* Right Side Panel - All 7 Emotions Dashboard */}
           <div className="w-full lg:w-80 flex flex-col gap-4">
-            <div className="bg-zinc-900 rounded-3xl p-6 border border-zinc-800 shadow-xl flex-1">
-              <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
+            <div className="bg-zinc-900 rounded-3xl p-6 border border-zinc-800 shadow-xl flex-1 flex flex-col">
+              <h2 className="text-lg font-bold mb-6 flex items-center gap-2 shrink-0">
                 <Activity className="w-5 h-5 text-blue-500" />
                 Emotion Analysis
               </h2>
               
               {!primaryFace ? (
-                <div className="h-full flex flex-col items-center justify-center text-zinc-500 space-y-4 pb-12">
+                <div className="flex-1 flex flex-col items-center justify-center text-zinc-500 space-y-4 pb-12">
                   <span className="text-6xl opacity-20">🎭</span>
                   <p className="text-sm text-center">Turn on tracking to<br/>see all 7 emotions live</p>
                 </div>
               ) : (
-                <div className="flex flex-col gap-5">
-                  {EMOTIONS_LIST.map(emotion => {
-                    const score = primaryFace.allEmotions[emotion] || 0;
-                    const percentage = Math.round(score * 100);
-                    const isDominant = emotion === primaryEmotion;
-                    
-                    return (
-                      <div key={emotion} className="flex flex-col gap-1.5">
-                        <div className="flex justify-between items-end">
-                          <span className={`text-sm font-bold flex items-center gap-2 ${isDominant ? 'text-white' : 'text-zinc-400'}`}>
-                            <span className="text-xl">{EMOTION_EMOJIS[emotion]}</span>
-                            <span className="capitalize">{emotion}</span>
-                          </span>
-                          <span className={`text-xs font-mono font-bold ${isDominant ? 'text-blue-400' : 'text-zinc-500'}`}>
-                            {percentage}%
-                          </span>
+                <div className="flex flex-col gap-5 h-full">
+                  
+                  {/* Live Analysis Summary */}
+                  <div className="bg-zinc-950 border border-blue-500/30 rounded-xl p-4 flex items-start gap-3 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
+                    <MessageSquareText className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1">Live AI Analysis</p>
+                      <p className="text-sm text-zinc-200 leading-snug font-medium capitalize">{liveAnalysisText}</p>
+                    </div>
+                  </div>
+
+                  <hr className="border-zinc-800 my-1" />
+
+                  {/* Progress Bars */}
+                  <div className="flex flex-col gap-4 flex-1">
+                    {EMOTIONS_LIST.map(emotion => {
+                      const score = primaryFace.allEmotions[emotion] || 0;
+                      const percentage = Math.round(score * 100);
+                      const isDominant = emotion === primaryEmotion;
+                      
+                      return (
+                        <div key={emotion} className="flex flex-col gap-1.5">
+                          <div className="flex justify-between items-end">
+                            <span className={`text-sm font-bold flex items-center gap-2 ${isDominant ? 'text-white' : 'text-zinc-400'}`}>
+                              <span className="text-xl">{EMOTION_EMOJIS[emotion]}</span>
+                              <span className="capitalize">{emotion}</span>
+                            </span>
+                            <span className={`text-xs font-mono font-bold ${isDominant ? 'text-blue-400' : 'text-zinc-500'}`}>
+                              {percentage}%
+                            </span>
+                          </div>
+                          <div className="w-full h-2 bg-zinc-950 rounded-full overflow-hidden border border-zinc-800/50">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-300 ease-out ${isDominant ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]' : 'bg-zinc-700'}`}
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
                         </div>
-                        <div className="w-full h-2 bg-zinc-950 rounded-full overflow-hidden border border-zinc-800/50">
-                          <div 
-                            className={`h-full rounded-full transition-all duration-300 ease-out ${isDominant ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]' : 'bg-zinc-700'}`}
-                            style={{ width: `${percentage}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
