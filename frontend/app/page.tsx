@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 
 export default function Home() {
-  const [data, setData] = useState<{ message: string; timestamp: string } | null>(null);
+  const [data, setData] = useState<{ message: string; status: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchTime, setFetchTime] = useState<number | null>(null);
 
