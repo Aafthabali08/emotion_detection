@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import Webcam from 'react-webcam';
-import { Camera, CameraOff, Play, Square, ZoomIn, ZoomOut, Check, X, Activity, MessageSquareText } from 'lucide-react';
+import { Camera, CameraOff, Play, Square, ZoomIn, ZoomOut, Check, X, Activity, MessageSquareText, BrainCircuit } from 'lucide-react';
 
 interface FaceResult {
   box: { x: number; y: number; width: number; height: number };
@@ -31,6 +31,7 @@ export default function Home() {
   const [faces, setFaces] = useState<FaceResult[]>([]);
   const [zoom, setZoom] = useState(1);
   const [feedbackMsg, setFeedbackMsg] = useState('');
+  const [isLearning, setIsLearning] = useState(false);
 
   const captureAndDetect = useCallback(async () => {
     if (!webcamRef.current || !isDetecting) return;
@@ -88,17 +89,18 @@ export default function Home() {
           const { x, y, width, height } = face.box;
           const emoji = EMOTION_EMOJIS[face.dominantEmotion] || '😐';
           
-          // Draw rectangular shape block
-          ctx.strokeStyle = '#3b82f6'; // blue-500
+          // Draw rectangular shape block (White border as requested)
+          ctx.strokeStyle = '#ffffff'; 
           ctx.lineWidth = 4;
           ctx.strokeRect(x, y, width, height);
           
-          // Draw emotion with emoji above box
-          ctx.fillStyle = '#3b82f6';
+          // Draw emotion with emoji above box (White background)
+          ctx.fillStyle = '#ffffff';
           ctx.fillRect(x, y - 40, width, 40);
           
-          ctx.fillStyle = '#ffffff';
-          ctx.font = '24px sans-serif';
+          // Black text for high contrast on white background
+          ctx.fillStyle = '#000000';
+          ctx.font = 'bold 22px sans-serif';
           ctx.fillText(`${emoji} ${face.dominantEmotion.toUpperCase()}`, x + 10, y - 10);
         });
       }
@@ -127,13 +129,48 @@ export default function Home() {
     }
   }
 
+  // Handle Feedback (Continuous Learning)
+  const handleFeedback = async (status: 'accepted' | 'rejected') => {
+    if (!primaryEmotion || !webcamRef.current) return;
+    
+    const imageBase64 = webcamRef.current.getScreenshot();
+    if (!imageBase64) return;
+
+    setIsLearning(true);
+    setFeedbackMsg(`Recording ${status} insight...`);
+
+    try {
+      const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:10000';
+      await fetch(`${BACKEND_URL}/api/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64,
+          predictedEmotion: primaryEmotion,
+          status
+        })
+      });
+
+      if (status === 'accepted') {
+        setFeedbackMsg('Dataset Updated: Reinforced ✅');
+      } else {
+        setFeedbackMsg('Dataset Updated: Flagged mistake ❌');
+      }
+    } catch (error) {
+      setFeedbackMsg('Error saving insight');
+    } finally {
+      setTimeout(() => setFeedbackMsg(''), 3000);
+      setIsLearning(false);
+    }
+  };
+
   return (
     <div className="flex flex-col items-center min-h-screen p-6 bg-zinc-950 text-white font-sans">
       <div className="w-full max-w-5xl flex flex-col gap-6">
         
         <header className="flex justify-between items-center bg-zinc-900 p-4 rounded-2xl border border-zinc-800 shadow-lg">
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Activity className="w-6 h-6 text-blue-500" />
+            <Activity className="w-6 h-6 text-white" />
             EmotionAI
           </h1>
           
@@ -143,7 +180,7 @@ export default function Home() {
               className={`flex items-center gap-2 px-5 py-2 rounded-full font-bold transition-all ${
                 isCameraOn 
                   ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20' 
-                  : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/30'
+                  : 'bg-white text-black hover:bg-zinc-200 shadow-lg'
               }`}
             >
               {isCameraOn ? <CameraOff className="w-5 h-5" /> : <Camera className="w-5 h-5" />}
@@ -174,11 +211,11 @@ export default function Home() {
 
                   {/* Emoji Rating Capsule */}
                   {primaryEmotion && (
-                    <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-xl border border-white/10 rounded-full px-6 py-2 flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-top-4">
+                    <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-white backdrop-blur-xl rounded-full px-6 py-2 flex items-center gap-3 shadow-[0_0_20px_rgba(255,255,255,0.2)] animate-in fade-in slide-in-from-top-4">
                       <span className="text-3xl drop-shadow-md">{primaryEmoji}</span>
                       <div className="flex flex-col">
-                        <span className="text-[10px] text-zinc-400 uppercase tracking-widest font-bold">Current Mood</span>
-                        <span className="text-xl font-black capitalize text-white leading-tight">{primaryEmotion}</span>
+                        <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Current Mood</span>
+                        <span className="text-xl font-black capitalize text-black leading-tight">{primaryEmotion}</span>
                       </div>
                     </div>
                   )}
@@ -188,7 +225,7 @@ export default function Home() {
                     <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm">
                       <button 
                         onClick={() => setIsDetecting(true)}
-                        className="flex items-center gap-3 bg-blue-500 hover:bg-blue-600 text-white px-8 py-4 rounded-full font-bold text-lg transition-transform hover:scale-105 shadow-blue-500/50 shadow-2xl"
+                        className="flex items-center gap-3 bg-white hover:bg-zinc-200 text-black px-8 py-4 rounded-full font-bold text-lg transition-transform hover:scale-105 shadow-[0_0_30px_rgba(255,255,255,0.3)]"
                       >
                         <Play className="w-6 h-6 fill-current" />
                         Start Emotion Tracking
@@ -205,7 +242,7 @@ export default function Home() {
                   )}
                 </div>
               ) : (
-                <div className="text-zinc-600 flex flex-col items-center gap-4">
+                 <div className="text-zinc-600 flex flex-col items-center gap-4">
                   <CameraOff className="w-16 h-16 opacity-50" />
                   <p className="text-lg font-medium">Camera is turned off</p>
                 </div>
@@ -221,7 +258,7 @@ export default function Home() {
                 <button 
                   disabled={!isCameraOn || zoom <= 1}
                   onClick={() => setZoom(prev => Math.max(1, prev - 0.2))}
-                  className="p-2.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:hover:bg-zinc-800 rounded-xl transition-colors"
+                  className="p-2.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:hover:bg-zinc-800 rounded-xl transition-colors text-white"
                 >
                   <ZoomOut className="w-5 h-5" />
                 </button>
@@ -229,28 +266,34 @@ export default function Home() {
                 <button 
                   disabled={!isCameraOn || zoom >= 3}
                   onClick={() => setZoom(prev => Math.min(3, prev + 0.2))}
-                  className="p-2.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:hover:bg-zinc-800 rounded-xl transition-colors"
+                  className="p-2.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:hover:bg-zinc-800 rounded-xl transition-colors text-white"
                 >
                   <ZoomIn className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Accept / Reject */}
+              {/* Feedback Loop: Accept / Reject */}
               <div className="flex items-center gap-3">
-                <span className="text-sm font-medium text-emerald-400 mr-2 animate-in fade-in">{feedbackMsg}</span>
+                <span className={`text-sm font-bold mr-2 transition-opacity ${feedbackMsg ? 'opacity-100' : 'opacity-0'} ${feedbackMsg.includes('❌') ? 'text-red-400' : 'text-emerald-400'}`}>
+                  {feedbackMsg}
+                </span>
+                
                 <button 
-                  onClick={() => { setFeedbackMsg('Result Rejected ❌'); setTimeout(() => setFeedbackMsg(''), 2000); }}
-                  className="flex items-center gap-2 bg-zinc-950 hover:bg-red-500/20 border border-zinc-800 hover:border-red-500/50 hover:text-red-400 text-zinc-400 px-5 py-2.5 rounded-xl font-bold transition-all"
+                  disabled={!primaryEmotion || isLearning}
+                  onClick={() => handleFeedback('rejected')}
+                  className="flex items-center gap-2 bg-zinc-950 hover:bg-red-500/20 border border-zinc-800 hover:border-red-500/50 hover:text-red-400 text-zinc-400 disabled:opacity-30 px-5 py-2.5 rounded-xl font-bold transition-all"
                 >
                   <X className="w-4 h-4" />
-                  Reject
+                  Mistake (Reject)
                 </button>
+                
                 <button 
-                  onClick={() => { setFeedbackMsg('Result Accepted ✅'); setTimeout(() => setFeedbackMsg(''), 2000); }}
-                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-blue-500/20 transition-all"
+                  disabled={!primaryEmotion || isLearning}
+                  onClick={() => handleFeedback('accepted')}
+                  className="flex items-center gap-2 bg-white hover:bg-zinc-200 text-black disabled:opacity-30 px-5 py-2.5 rounded-xl font-bold shadow-[0_0_15px_rgba(255,255,255,0.2)] transition-all"
                 >
                   <Check className="w-4 h-4" />
-                  Accept
+                  Correct (Accept)
                 </button>
               </div>
 
@@ -259,9 +302,16 @@ export default function Home() {
 
           {/* Right Side Panel - All 7 Emotions Dashboard */}
           <div className="w-full lg:w-80 flex flex-col gap-4">
-            <div className="bg-zinc-900 rounded-3xl p-6 border border-zinc-800 shadow-xl flex-1 flex flex-col">
+            <div className="bg-zinc-900 rounded-3xl p-6 border border-zinc-800 shadow-xl flex-1 flex flex-col relative overflow-hidden">
+              
+              {/* Continuous Learning Badge */}
+              <div className="absolute top-0 right-0 bg-white text-black text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-bl-xl shadow-lg flex items-center gap-1">
+                <BrainCircuit className="w-3 h-3" />
+                Learning Mode
+              </div>
+
               <h2 className="text-lg font-bold mb-6 flex items-center gap-2 shrink-0">
-                <Activity className="w-5 h-5 text-blue-500" />
+                <Activity className="w-5 h-5 text-white" />
                 Emotion Analysis
               </h2>
               
@@ -274,11 +324,11 @@ export default function Home() {
                 <div className="flex flex-col gap-5 h-full">
                   
                   {/* Live Analysis Summary */}
-                  <div className="bg-zinc-950 border border-blue-500/30 rounded-xl p-4 flex items-start gap-3 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
-                    <MessageSquareText className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+                  <div className="bg-zinc-950 border border-white/20 rounded-xl p-4 flex items-start gap-3 shadow-lg">
+                    <MessageSquareText className="w-5 h-5 text-white shrink-0 mt-0.5" />
                     <div>
-                      <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1">Live AI Analysis</p>
-                      <p className="text-sm text-zinc-200 leading-snug font-medium capitalize">{liveAnalysisText}</p>
+                      <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Live AI Analysis</p>
+                      <p className="text-sm text-white leading-snug font-medium capitalize">{liveAnalysisText}</p>
                     </div>
                   </div>
 
@@ -298,13 +348,13 @@ export default function Home() {
                               <span className="text-xl">{EMOTION_EMOJIS[emotion]}</span>
                               <span className="capitalize">{emotion}</span>
                             </span>
-                            <span className={`text-xs font-mono font-bold ${isDominant ? 'text-blue-400' : 'text-zinc-500'}`}>
+                            <span className={`text-xs font-mono font-bold ${isDominant ? 'text-white' : 'text-zinc-500'}`}>
                               {percentage}%
                             </span>
                           </div>
                           <div className="w-full h-2 bg-zinc-950 rounded-full overflow-hidden border border-zinc-800/50">
                             <div 
-                              className={`h-full rounded-full transition-all duration-300 ease-out ${isDominant ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]' : 'bg-zinc-700'}`}
+                              className={`h-full rounded-full transition-all duration-300 ease-out ${isDominant ? 'bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)]' : 'bg-zinc-700'}`}
                               style={{ width: `${percentage}%` }}
                             />
                           </div>

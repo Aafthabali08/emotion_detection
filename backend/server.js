@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const faceapi = require('@vladmandic/face-api');
 const canvas = require('canvas');
 
@@ -13,10 +14,20 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 
 app.use(cors());
-app.use(express.json());
+// Increase JSON limit to handle base64 images for feedback
+app.use(express.json({ limit: '50mb' }));
 
 // Set up multer to receive image uploads in memory
 const upload = multer({ storage: multer.memoryStorage() });
+
+// Setup Dataset directories for continuous learning
+const datasetDir = path.join(__dirname, 'dataset');
+const acceptedDir = path.join(datasetDir, 'accepted');
+const rejectedDir = path.join(datasetDir, 'rejected');
+
+if (!fs.existsSync(datasetDir)) fs.mkdirSync(datasetDir);
+if (!fs.existsSync(acceptedDir)) fs.mkdirSync(acceptedDir);
+if (!fs.existsSync(rejectedDir)) fs.mkdirSync(rejectedDir);
 
 // Load models
 async function loadModels() {
@@ -72,6 +83,50 @@ app.post('/api/detect', upload.single('image'), async (req, res) => {
   } catch (error) {
     console.error('Detection error:', error);
     res.status(500).json({ error: 'Failed to process image' });
+  }
+});
+
+// Feedback endpoint for continuous learning
+app.post('/api/feedback', (req, res) => {
+  try {
+    const { imageBase64, predictedEmotion, status } = req.body;
+    
+    if (!imageBase64 || !predictedEmotion || !status) {
+      return res.status(400).json({ error: 'Missing feedback data' });
+    }
+
+    const timestamp = Date.now();
+    const filename = `${predictedEmotion}_${timestamp}.jpg`;
+    
+    // Strip base64 prefix
+    const base64Data = imageBase64.replace(/^data:image\/jpeg;base64,/, "");
+    
+    let targetDir = status === 'accepted' ? acceptedDir : rejectedDir;
+    const filePath = path.join(targetDir, filename);
+
+    // Save the image frame for future model retraining
+    fs.writeFileSync(filePath, base64Data, 'base64');
+
+    // Append metadata to insights log
+    const insight = {
+      timestamp,
+      filename,
+      predictedEmotion,
+      status,
+      action: status === 'accepted' ? 'Reinforced positive weight' : 'Flagged for penalty/correction'
+    };
+    
+    fs.appendFileSync(
+      path.join(datasetDir, 'insights.jsonl'), 
+      JSON.stringify(insight) + '\n'
+    );
+
+    console.log(`[LEARNING] Feedback logged: ${status.toUpperCase()} for ${predictedEmotion}`);
+    
+    res.json({ success: true, message: 'Insight recorded for continuous learning' });
+  } catch (error) {
+    console.error('Feedback error:', error);
+    res.status(500).json({ error: 'Failed to record feedback' });
   }
 });
 
